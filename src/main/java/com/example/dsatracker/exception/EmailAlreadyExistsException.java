@@ -1,1 +1,1 @@
-package com.example.dsatracker.exception;public class EmailAlreadyExistsException {}
+package com.example.dsatracker.exception;public class EmailAlreadyExistsException extends RuntimeException {    public EmailAlreadyExistsException(String message) {        super(message);    }}
