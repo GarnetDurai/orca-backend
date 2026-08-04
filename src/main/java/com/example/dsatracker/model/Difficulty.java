@@ -1,0 +1,1 @@
+package com.example.dsatracker.model;public enum Difficulty {    EASY,    MEDIUM,    HARD}
