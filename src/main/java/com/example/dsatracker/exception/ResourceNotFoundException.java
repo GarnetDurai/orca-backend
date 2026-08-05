@@ -1,0 +1,1 @@
+package com.example.dsatracker.exception;public class ResourceNotFoundException extends RuntimeException {    public ResourceNotFoundException(String message) {        super(message);    }}

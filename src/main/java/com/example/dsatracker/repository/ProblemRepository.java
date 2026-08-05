@@ -1,1 +1,1 @@
-package com.example.dsatracker.repository;public class ProblemRepository {}
+package com.example.dsatracker.repository;import com.example.dsatracker.model.Difficulty;import com.example.dsatracker.model.Problem;import org.springframework.data.jpa.repository.JpaRepository;import org.springframework.stereotype.Repository;import java.util.List;@Repositorypublic interface ProblemRepository extends JpaRepository<Problem, Long> {    boolean existsByLeetcodeId(Integer leetcodeId);    List<Problem> findByDifficulty(Difficulty difficulty);}
