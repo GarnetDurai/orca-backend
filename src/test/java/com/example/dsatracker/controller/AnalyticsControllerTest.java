@@ -1,11 +1,9 @@
 package com.example.dsatracker.controller;
 
-import com.example.dsatracker.dto.DifficultyAnalyticsDTO;
-import com.example.dsatracker.dto.HistoricalAnalyticsDTO;
-import com.example.dsatracker.dto.TimeWindow;
-import com.example.dsatracker.dto.TopicAnalyticsDTO;
+import com.example.dsatracker.dto.*;
 import com.example.dsatracker.security.JwtAuthenticationFilter;
 import com.example.dsatracker.service.HistoricalAnalyticsService;
+import com.example.dsatracker.service.UserPerformanceProfileService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +34,9 @@ class AnalyticsControllerTest {
 
     @MockitoBean
     private HistoricalAnalyticsService historicalAnalyticsService;
+
+    @MockitoBean
+    private UserPerformanceProfileService userPerformanceProfileService;
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -103,5 +104,85 @@ class AnalyticsControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalProblemsSolved").value(2));
+    }
+
+    @Test
+    @DisplayName("GET /analytics/profile - Returns UserPerformanceProfileDTO (200 OK)")
+    void testGetUserProfileSuccess() throws Exception {
+        ProfileOverallDTO overall = ProfileOverallDTO.builder()
+                .uniqueProblemsSolved(10)
+                .totalSolvedSessions(12)
+                .totalSessions(15)
+                .totalSubmissions(25)
+                .averageAttempts(1.5)
+                .firstAttemptSuccessRate(75.0)
+                .averageSolveTime(600000L)
+                .averageThinkingTime(120000L)
+                .averageCodingTime(480000L)
+                .totalTimeSpent(7200000L)
+                .hintUsageRate(20.0)
+                .solutionUsageRate(10.0)
+                .editorialUsageRate(5.0)
+                .build();
+
+        DifficultyProfileDTO easyDiff = DifficultyProfileDTO.builder()
+                .uniqueProblemsSolved(5)
+                .totalSolvedSessions(6)
+                .sessionCount(7)
+                .averageSolveTime(300000L)
+                .averageAttempts(1.2)
+                .firstAttemptSuccessRate(83.33)
+                .hintUsageRate(0.0)
+                .solutionUsageRate(0.0)
+                .editorialUsageRate(0.0)
+                .build();
+
+        TopicProfileDTO arrayTopic = TopicProfileDTO.builder()
+                .topic("Array")
+                .uniqueProblemsSolved(4)
+                .totalSolvedSessions(5)
+                .sessionCount(6)
+                .averageSolveTime(400000L)
+                .averageAttempts(1.3)
+                .firstAttemptSuccessRate(80.0)
+                .hintUsageRate(20.0)
+                .solutionUsageRate(0.0)
+                .editorialUsageRate(0.0)
+                .build();
+
+        RecentTrendsDTO trends = RecentTrendsDTO.builder()
+                .last7Days(TrendComparisonDTO.builder()
+                        .timeWindow("LAST_7_DAYS")
+                        .deltaProblemsSolved(2)
+                        .currentPeriod(TrendPeriodMetricsDTO.builder().uniqueProblemsSolved(3).build())
+                        .previousPeriod(TrendPeriodMetricsDTO.builder().uniqueProblemsSolved(1).build())
+                        .build())
+                .last30Days(TrendComparisonDTO.builder()
+                        .timeWindow("LAST_30_DAYS")
+                        .deltaProblemsSolved(5)
+                        .currentPeriod(TrendPeriodMetricsDTO.builder().uniqueProblemsSolved(8).build())
+                        .previousPeriod(TrendPeriodMetricsDTO.builder().uniqueProblemsSolved(3).build())
+                        .build())
+                .build();
+
+        UserPerformanceProfileDTO profileDTO = UserPerformanceProfileDTO.builder()
+                .overall(overall)
+                .difficultyPerformance(Map.of("EASY", easyDiff))
+                .topicPerformance(Map.of("Array", arrayTopic))
+                .recentTrends(trends)
+                .build();
+
+        when(userPerformanceProfileService.getUserProfile()).thenReturn(profileDTO);
+
+        mockMvc.perform(get("/analytics/profile")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.overall.uniqueProblemsSolved").value(10))
+                .andExpect(jsonPath("$.overall.totalSolvedSessions").value(12))
+                .andExpect(jsonPath("$.overall.totalSessions").value(15))
+                .andExpect(jsonPath("$.overall.totalSubmissions").value(25))
+                .andExpect(jsonPath("$.difficultyPerformance.EASY.uniqueProblemsSolved").value(5))
+                .andExpect(jsonPath("$.topicPerformance.Array.uniqueProblemsSolved").value(4))
+                .andExpect(jsonPath("$.recentTrends.last7Days.deltaProblemsSolved").value(2));
     }
 }
