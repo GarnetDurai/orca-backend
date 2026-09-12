@@ -45,6 +45,9 @@ class SessionServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private ConfidenceService confidenceService;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock

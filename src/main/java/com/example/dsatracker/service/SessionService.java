@@ -26,14 +26,17 @@ public class SessionService {
     private final ProblemSessionRepository sessionRepository;
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
+    private final ConfidenceService confidenceService;
 
     public SessionService(
             ProblemSessionRepository sessionRepository,
             ProblemRepository problemRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            ConfidenceService confidenceService) {
         this.sessionRepository = sessionRepository;
         this.problemRepository = problemRepository;
         this.userRepository = userRepository;
+        this.confidenceService = confidenceService;
     }
 
     @Transactional
@@ -57,6 +60,15 @@ public class SessionService {
 
         // 5. Transactional save (cascades to all SessionEvent records)
         ProblemSession savedSession = sessionRepository.save(session);
+
+        // 6. Update deterministic confidence state
+        if (confidenceService != null) {
+            try {
+                confidenceService.updateConfidenceForSession(savedSession);
+            } catch (Exception e) {
+                // Confidence calculation should not fail the ingestion of raw session data
+            }
+        }
 
         return SessionMapper.toResponse(savedSession);
     }

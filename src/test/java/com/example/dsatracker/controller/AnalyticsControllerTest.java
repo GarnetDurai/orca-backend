@@ -2,6 +2,7 @@ package com.example.dsatracker.controller;
 
 import com.example.dsatracker.dto.*;
 import com.example.dsatracker.security.JwtAuthenticationFilter;
+import com.example.dsatracker.service.ConfidenceService;
 import com.example.dsatracker.service.HistoricalAnalyticsService;
 import com.example.dsatracker.service.UserPerformanceProfileService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +38,9 @@ class AnalyticsControllerTest {
 
     @MockitoBean
     private UserPerformanceProfileService userPerformanceProfileService;
+
+    @MockitoBean
+    private ConfidenceService confidenceService;
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -184,5 +188,92 @@ class AnalyticsControllerTest {
                 .andExpect(jsonPath("$.difficultyPerformance.EASY.uniqueProblemsSolved").value(5))
                 .andExpect(jsonPath("$.topicPerformance.Array.uniqueProblemsSolved").value(4))
                 .andExpect(jsonPath("$.recentTrends.last7Days.deltaProblemsSolved").value(2));
+    }
+
+    @Test
+    @DisplayName("GET /analytics/confidence/{problemId} - Returns ConfidenceResponseDTO (200 OK)")
+    void testGetConfidenceForProblemSuccess() throws Exception {
+        ConfidenceResponseDTO dto = ConfidenceResponseDTO.builder()
+                .problemId(1L)
+                .leetcodeId(1)
+                .problemTitle("Two Sum")
+                .difficulty("EASY")
+                .currentConfidence(85.5)
+                .masteryScore(100.0)
+                .independenceScore(100.0)
+                .retentionStrength(40.0)
+                .successfulSolveCount(1)
+                .independentSolveCount(1)
+                .algorithmVersion("V1")
+                .history(java.util.List.of(
+                        ConfidenceHistoryDTO.builder()
+                                .id(101L)
+                                .previousConfidence(0.0)
+                                .newConfidence(85.5)
+                                .masteryContribution(100.0)
+                                .independenceContribution(100.0)
+                                .retentionContribution(30.0)
+                                .assistanceEffect("NO_ASSISTANCE")
+                                .awayTimeEffect(0.0)
+                                .algorithmVersion("V1")
+                                .build()
+                ))
+                .build();
+
+        when(confidenceService.getConfidenceForProblem(eq(1L))).thenReturn(dto);
+
+        mockMvc.perform(get("/analytics/confidence/1")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.problemId").value(1))
+                .andExpect(jsonPath("$.problemTitle").value("Two Sum"))
+                .andExpect(jsonPath("$.currentConfidence").value(85.5))
+                .andExpect(jsonPath("$.masteryScore").value(100.0))
+                .andExpect(jsonPath("$.independenceScore").value(100.0))
+                .andExpect(jsonPath("$.algorithmVersion").value("V1"))
+                .andExpect(jsonPath("$.history[0].assistanceEffect").value("NO_ASSISTANCE"));
+    }
+
+    @Test
+    @DisplayName("GET /analytics/confidence - Returns List<ConfidenceResponseDTO> (200 OK)")
+    void testGetAllConfidenceSuccess() throws Exception {
+        ConfidenceResponseDTO dto1 = ConfidenceResponseDTO.builder()
+                .problemId(1L)
+                .leetcodeId(1)
+                .problemTitle("Two Sum")
+                .difficulty("EASY")
+                .currentConfidence(85.5)
+                .masteryScore(100.0)
+                .independenceScore(100.0)
+                .retentionStrength(40.0)
+                .successfulSolveCount(1)
+                .independentSolveCount(1)
+                .algorithmVersion("V1")
+                .build();
+
+        ConfidenceResponseDTO dto2 = ConfidenceResponseDTO.builder()
+                .problemId(2L)
+                .leetcodeId(2)
+                .problemTitle("Add Two Numbers")
+                .difficulty("MEDIUM")
+                .currentConfidence(55.0)
+                .masteryScore(85.0)
+                .independenceScore(70.0)
+                .retentionStrength(15.0)
+                .successfulSolveCount(1)
+                .independentSolveCount(0)
+                .algorithmVersion("V1")
+                .build();
+
+        when(confidenceService.getAllConfidenceForUser()).thenReturn(java.util.List.of(dto1, dto2));
+
+        mockMvc.perform(get("/analytics/confidence")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].problemId").value(1))
+                .andExpect(jsonPath("$[0].currentConfidence").value(85.5))
+                .andExpect(jsonPath("$[1].problemId").value(2))
+                .andExpect(jsonPath("$[1].currentConfidence").value(55.0));
     }
 }
