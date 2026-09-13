@@ -27,16 +27,19 @@ public class SessionService {
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
     private final ConfidenceService confidenceService;
+    private final RevisionScheduler revisionScheduler;
 
     public SessionService(
             ProblemSessionRepository sessionRepository,
             ProblemRepository problemRepository,
             UserRepository userRepository,
-            ConfidenceService confidenceService) {
+            ConfidenceService confidenceService,
+            RevisionScheduler revisionScheduler) {
         this.sessionRepository = sessionRepository;
         this.problemRepository = problemRepository;
         this.userRepository = userRepository;
         this.confidenceService = confidenceService;
+        this.revisionScheduler = revisionScheduler;
     }
 
     @Transactional
@@ -67,6 +70,15 @@ public class SessionService {
                 confidenceService.updateConfidenceForSession(savedSession);
             } catch (Exception e) {
                 // Confidence calculation should not fail the ingestion of raw session data
+            }
+        }
+
+        // 7. Update Spaced Repetition (SRS V1) state
+        if (revisionScheduler != null) {
+            try {
+                revisionScheduler.processSession(savedSession);
+            } catch (Exception e) {
+                // SRS scheduling should not fail the ingestion of raw session data
             }
         }
 

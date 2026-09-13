@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -41,6 +42,9 @@ class AnalyticsControllerTest {
 
     @MockitoBean
     private ConfidenceService confidenceService;
+
+    @MockitoBean
+    private com.example.dsatracker.service.RevisionScheduler revisionScheduler;
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -275,5 +279,103 @@ class AnalyticsControllerTest {
                 .andExpect(jsonPath("$[0].currentConfidence").value(85.5))
                 .andExpect(jsonPath("$[1].problemId").value(2))
                 .andExpect(jsonPath("$[1].currentConfidence").value(55.0));
+    }
+
+    @Test
+    @DisplayName("GET /analytics/revisions - Returns List<RevisionStateDTO> (200 OK)")
+    void testGetAllRevisions() throws Exception {
+        RevisionStateDTO dto = RevisionStateDTO.builder()
+                .id(10L)
+                .problemId(1L)
+                .leetcodeId(1)
+                .problemTitle("Two Sum")
+                .difficulty("EASY")
+                .currentIntervalDays(3)
+                .reviewCount(1)
+                .skipCount(0)
+                .isOverdue(false)
+                .overdueDays(0.0)
+                .algorithmVersion("SRS_V1")
+                .build();
+
+        when(revisionScheduler.getAllRevisionsForUser()).thenReturn(java.util.List.of(dto));
+
+        mockMvc.perform(get("/analytics/revisions")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].problemId").value(1))
+                .andExpect(jsonPath("$[0].currentIntervalDays").value(3))
+                .andExpect(jsonPath("$[0].algorithmVersion").value("SRS_V1"));
+    }
+
+    @Test
+    @DisplayName("GET /analytics/revisions/today - Returns ReviewQueueResponseDTO (200 OK)")
+    void testGetTodayReviewQueue() throws Exception {
+        ReviewQueueItemDTO item = ReviewQueueItemDTO.builder()
+                .problemId(1L)
+                .leetcodeId(1)
+                .problemTitle("Two Sum")
+                .difficulty("EASY")
+                .currentIntervalDays(3)
+                .reviewCount(1)
+                .skipCount(0)
+                .currentConfidence(80.0)
+                .retentionStrength(50.0)
+                .overdueDays(1.5)
+                .overduePressure(0.75)
+                .memoryRisk(0.30)
+                .fairnessScore(0.0)
+                .priority(0.50)
+                .fairnessRequired(false)
+                .queuePosition(1)
+                .build();
+
+        ReviewQueueResponseDTO responseDTO = ReviewQueueResponseDTO.builder()
+                .queue(java.util.List.of(item))
+                .totalDue(1)
+                .dailyCapacity(2)
+                .backlogCount(0)
+                .fairnessRequiredCount(0)
+                .capacityDetails(ReviewCapacityDTO.builder().dailyCapacity(2).activeDaysLast30Days(10).build())
+                .build();
+
+        when(revisionScheduler.getTodayReviewQueue(any())).thenReturn(responseDTO);
+
+        mockMvc.perform(get("/analytics/revisions/today")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalDue").value(1))
+                .andExpect(jsonPath("$.dailyCapacity").value(2))
+                .andExpect(jsonPath("$.queue[0].problemTitle").value("Two Sum"))
+                .andExpect(jsonPath("$.queue[0].priority").value(0.50));
+    }
+
+    @Test
+    @DisplayName("GET /analytics/revisions/{problemId} - Returns RevisionStateDTO (200 OK)")
+    void testGetRevisionForProblem() throws Exception {
+        RevisionStateDTO dto = RevisionStateDTO.builder()
+                .id(10L)
+                .problemId(1L)
+                .leetcodeId(1)
+                .problemTitle("Two Sum")
+                .difficulty("EASY")
+                .currentIntervalDays(5)
+                .reviewCount(2)
+                .skipCount(0)
+                .isOverdue(true)
+                .overdueDays(2.0)
+                .algorithmVersion("SRS_V1")
+                .build();
+
+        when(revisionScheduler.getRevisionForProblem(eq(1L))).thenReturn(dto);
+
+        mockMvc.perform(get("/analytics/revisions/1")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.problemId").value(1))
+                .andExpect(jsonPath("$.currentIntervalDays").value(5))
+                .andExpect(jsonPath("$.isOverdue").value(true))
+                .andExpect(jsonPath("$.overdueDays").value(2.0));
     }
 }

@@ -90,6 +90,11 @@ public class ProblemSession {
     @Builder.Default
     private Boolean solved = false;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private SessionType sessionType = SessionType.PRACTICE;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

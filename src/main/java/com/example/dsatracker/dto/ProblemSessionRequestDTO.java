@@ -66,6 +66,8 @@ public class ProblemSessionRequestDTO {
     @NotNull(message = "Solved state is required")
     private Boolean solved;
 
+    private String sessionType;
+
     @Valid
     @Builder.Default
     private List<SessionEventDTO> events = new ArrayList<>();

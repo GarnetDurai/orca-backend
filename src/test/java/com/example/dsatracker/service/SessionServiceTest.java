@@ -48,6 +48,9 @@ class SessionServiceTest {
     private ConfidenceService confidenceService;
 
     @Mock
+    private RevisionScheduler revisionScheduler;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock

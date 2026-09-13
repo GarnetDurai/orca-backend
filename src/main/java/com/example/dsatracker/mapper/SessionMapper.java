@@ -57,6 +57,7 @@ public class SessionMapper {
                 .editorialViewedAt(toLocalDateTime(request.getEditorialViewedAt()))
                 .attempts(request.getAttempts() != null ? request.getAttempts() : 0)
                 .solved(Boolean.TRUE.equals(request.getSolved()))
+                .sessionType(parseSessionType(request.getSessionType()))
                 .build();
 
         if (request.getEvents() != null) {
@@ -135,5 +136,16 @@ public class SessionMapper {
                 .createdAt(session.getCreatedAt())
                 .events(eventDtos)
                 .build();
+    }
+
+    private static com.example.dsatracker.model.SessionType parseSessionType(String typeStr) {
+        if (typeStr == null || typeStr.isBlank()) {
+            return com.example.dsatracker.model.SessionType.PRACTICE;
+        }
+        try {
+            return com.example.dsatracker.model.SessionType.valueOf(typeStr.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return com.example.dsatracker.model.SessionType.PRACTICE;
+        }
     }
 }
