@@ -14,4 +14,6 @@ public class ReviewCapacityDTO {
     private Double medianDailyReviews;
     private Double newProblemsPerActiveDay;
     private Double reviewProblemsPerActiveDay;
+    private Integer reviewsCompletedToday;
+    private Integer newProblemsSolvedToday;
 }

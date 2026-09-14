@@ -98,6 +98,9 @@ public class ReviewCapacityService {
 
         double newPerDay = roundToTwoDecimals((double) totalNew / activeDays.size());
         double reviewPerDay = roundToTwoDecimals((double) totalReviews / activeDays.size());
+        LocalDate today = now.atZone(zone).toLocalDate();
+        int completedReviewsToday = reviewsPerDay.getOrDefault(today, 0);
+        int newProblemsSolvedToday = newProblemsPerDay.getOrDefault(today, Collections.emptySet()).size();
 
         return ReviewCapacityDTO.builder()
                 .dailyCapacity(capacity)
@@ -105,6 +108,8 @@ public class ReviewCapacityService {
                 .medianDailyReviews(roundToTwoDecimals(median))
                 .newProblemsPerActiveDay(newPerDay)
                 .reviewProblemsPerActiveDay(reviewPerDay)
+                .reviewsCompletedToday(completedReviewsToday)
+                .newProblemsSolvedToday(newProblemsSolvedToday)
                 .build();
     }
 
@@ -127,6 +132,8 @@ public class ReviewCapacityService {
                 .medianDailyReviews(0.0)
                 .newProblemsPerActiveDay(0.0)
                 .reviewProblemsPerActiveDay(0.0)
+                .reviewsCompletedToday(0)
+                .newProblemsSolvedToday(0)
                 .build();
     }
 

@@ -6,6 +6,7 @@ import com.example.dsatracker.model.*;
 import com.example.dsatracker.repository.*;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -56,7 +57,7 @@ public class RevisionScheduler {
         this.capacityService = capacityService;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public RevisionStateDTO processSession(ProblemSession session) {
         if (session == null || session.getUser() == null || session.getProblem() == null) {
             return null;
@@ -148,7 +149,7 @@ public class RevisionScheduler {
 
         // Meaningful recall processing
         LocalDateTime prevSolveTime = state.getLastReviewedAt() != null ? state.getLastReviewedAt() : sessionTime.minusDays(state.getCurrentIntervalDays());
-        LocalDateTime prevNextReviewAt = state.getNextReviewAt();
+        LocalDateTime prevNextReviewAt = state.getNextReviewAt() != null ? state.getNextReviewAt() : sessionTime;
         int prevIntervalDays = state.getCurrentIntervalDays() != null ? state.getCurrentIntervalDays() : 1;
 
         double actualRecallIntervalDays = Math.max(0.0, (double) Duration.between(prevSolveTime, sessionTime).toMinutes() / 1440.0);
@@ -356,6 +357,8 @@ public class RevisionScheduler {
                 .dailyCapacity(capacity)
                 .backlogCount(backlogCount)
                 .fairnessRequiredCount(fairnessRequiredCount)
+                .reviewsCompletedToday(capacityDto.getReviewsCompletedToday())
+                .newProblemsSolvedToday(capacityDto.getNewProblemsSolvedToday())
                 .capacityDetails(capacityDto)
                 .build();
     }

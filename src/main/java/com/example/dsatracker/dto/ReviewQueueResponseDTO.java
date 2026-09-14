@@ -19,6 +19,8 @@ public class ReviewQueueResponseDTO {
     private Integer dailyCapacity;
     private Integer backlogCount;
     private Integer fairnessRequiredCount;
+    private Integer reviewsCompletedToday;
+    private Integer newProblemsSolvedToday;
 
     private ReviewCapacityDTO capacityDetails;
 }

@@ -12,7 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -234,5 +236,75 @@ class SessionControllerTest {
 
         mockMvc.perform(get("/sessions/sess-other-user/analytics"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("POST /sessions - DataIntegrityViolationException returns 409 Conflict")
+    void testIngestSessionDataIntegrityViolationReturns409() throws Exception {
+        ProblemSessionRequestDTO request = ProblemSessionRequestDTO.builder()
+                .sessionId("sess-dup")
+                .problem(ProblemMetadataDTO.builder().leetcodeId(1).build())
+                .sessionStartedAt(1725040000000L)
+                .attempts(1)
+                .solved(true)
+                .build();
+
+        when(sessionService.ingestSession(any()))
+                .thenThrow(new DataIntegrityViolationException("Duplicate entry uk_problem_sessions_session_id"));
+
+        mockMvc.perform(post("/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Database constraint violation: A resource with this identifier or relationship already exists."));
+    }
+
+    @Test
+    @DisplayName("POST /sessions - Negative timestamp returns 400 Bad Request")
+    void testIngestSessionNegativeTimestampReturns400() throws Exception {
+        ProblemSessionRequestDTO request = ProblemSessionRequestDTO.builder()
+                .sessionId("sess-neg")
+                .problem(ProblemMetadataDTO.builder().leetcodeId(1).build())
+                .sessionStartedAt(-100L)
+                .attempts(1)
+                .solved(true)
+                .build();
+
+        mockMvc.perform(post("/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
+    @DisplayName("POST /sessions - Malformed JSON body returns 400 Bad Request")
+    void testIngestSessionMalformedJsonReturns400() throws Exception {
+        mockMvc.perform(post("/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{invalid-json-body}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Malformed JSON request body"));
+    }
+
+    @Test
+    @DisplayName("POST /sessions - Database failure returns 500 with sanitized message")
+    void testIngestSessionDataAccessExceptionReturns500Sanitized() throws Exception {
+        ProblemSessionRequestDTO request = ProblemSessionRequestDTO.builder()
+                .sessionId("sess-db-down")
+                .problem(ProblemMetadataDTO.builder().leetcodeId(1).build())
+                .sessionStartedAt(1725040000000L)
+                .attempts(1)
+                .solved(true)
+                .build();
+
+        when(sessionService.ingestSession(any()))
+                .thenThrow(new CannotGetJdbcConnectionException("Failed to connect to postgres:5432"));
+
+        mockMvc.perform(post("/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("Database error occurred while processing request."));
     }
 }

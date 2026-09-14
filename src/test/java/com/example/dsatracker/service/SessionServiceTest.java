@@ -396,4 +396,64 @@ class SessionServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> sessionService.getSessionById("sess-user-b"));
     }
+
+    @Test
+    @DisplayName("12. SRS scheduling failure does not prevent raw ProblemSession ingestion")
+    void testSrsFailureDoesNotPreventSessionIngestion() {
+        ProblemSessionRequestDTO request = ProblemSessionRequestDTO.builder()
+                .sessionId("sess-srs-fail")
+                .problem(ProblemMetadataDTO.builder().leetcodeId(1).build())
+                .sessionStartedAt(1725040000000L)
+                .build();
+
+        when(sessionRepository.existsBySessionId("sess-srs-fail")).thenReturn(false);
+        when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
+        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
+        when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> {
+            ProblemSession ps = invocation.getArgument(0);
+            ps.setId(101L);
+            ps.setCreatedAt(LocalDateTime.now());
+            return ps;
+        });
+
+        doThrow(new RuntimeException("SRS calculation failed"))
+                .when(revisionScheduler).processSession(any());
+
+        ProblemSessionResponseDTO response = sessionService.ingestSession(request);
+
+        assertNotNull(response);
+        assertEquals("sess-srs-fail", response.getSessionId());
+        assertEquals("SAVED", response.getStatus());
+        verify(sessionRepository).save(any(ProblemSession.class));
+    }
+
+    @Test
+    @DisplayName("13. Confidence failure does not prevent raw ProblemSession ingestion")
+    void testConfidenceFailureDoesNotPreventSessionIngestion() {
+        ProblemSessionRequestDTO request = ProblemSessionRequestDTO.builder()
+                .sessionId("sess-conf-fail")
+                .problem(ProblemMetadataDTO.builder().leetcodeId(1).build())
+                .sessionStartedAt(1725040000000L)
+                .build();
+
+        when(sessionRepository.existsBySessionId("sess-conf-fail")).thenReturn(false);
+        when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
+        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
+        when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> {
+            ProblemSession ps = invocation.getArgument(0);
+            ps.setId(102L);
+            ps.setCreatedAt(LocalDateTime.now());
+            return ps;
+        });
+
+        doThrow(new RuntimeException("Confidence calculation failed"))
+                .when(confidenceService).updateConfidenceForSession(any());
+
+        ProblemSessionResponseDTO response = sessionService.ingestSession(request);
+
+        assertNotNull(response);
+        assertEquals("sess-conf-fail", response.getSessionId());
+        assertEquals("SAVED", response.getStatus());
+        verify(sessionRepository).save(any(ProblemSession.class));
+    }
 }

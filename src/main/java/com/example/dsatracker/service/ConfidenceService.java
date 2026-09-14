@@ -10,6 +10,7 @@ import com.example.dsatracker.repository.ProblemSessionRepository;
 import com.example.dsatracker.repository.UserRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -41,7 +42,7 @@ public class ConfidenceService {
         this.sessionAnalyticsService = sessionAnalyticsService;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ConfidenceResponseDTO updateConfidenceForSession(ProblemSession session) {
         if (session == null || session.getUser() == null || session.getProblem() == null) {
             throw new IllegalArgumentException("Session, User, and Problem must not be null.");

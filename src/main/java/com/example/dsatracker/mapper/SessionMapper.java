@@ -6,6 +6,7 @@ import com.example.dsatracker.model.ProblemSession;
 import com.example.dsatracker.model.SessionEvent;
 import com.example.dsatracker.model.User;
 
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -17,11 +18,15 @@ public class SessionMapper {
     private SessionMapper() {
     }
 
-    public static LocalDateTime toLocalDateTime(Long epochMs) {
-        if (epochMs == null) {
+    private static LocalDateTime toLocalDateTime(Long epochMillis) {
+        if (epochMillis == null || epochMillis <= 0) {
             return null;
         }
-        return LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMs), ZoneId.systemDefault());
+        try {
+            return LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneId.systemDefault());
+        } catch (DateTimeException e) {
+            return null;
+        }
     }
 
     public static Long toEpochMilli(LocalDateTime ldt) {
@@ -36,13 +41,29 @@ public class SessionMapper {
             User user,
             Problem problem) {
 
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime sessionStartedAt = toLocalDateTime(request.getSessionStartedAt());
+        if (sessionStartedAt != null && sessionStartedAt.isAfter(now.plusMinutes(5))) {
+            sessionStartedAt = now;
+        }
+
+        LocalDateTime firstCodingAt = toLocalDateTime(request.getFirstCodingAt());
+        if (firstCodingAt != null && sessionStartedAt != null && firstCodingAt.isBefore(sessionStartedAt)) {
+            firstCodingAt = sessionStartedAt;
+        }
+
+        LocalDateTime solvedAt = toLocalDateTime(request.getSolvedAt());
+        if (solvedAt != null && sessionStartedAt != null && solvedAt.isBefore(sessionStartedAt)) {
+            solvedAt = sessionStartedAt;
+        }
+
         ProblemSession session = ProblemSession.builder()
                 .sessionId(request.getSessionId())
                 .user(user)
                 .problem(problem)
-                .sessionStartedAt(toLocalDateTime(request.getSessionStartedAt()))
-                .firstCodingAt(toLocalDateTime(request.getFirstCodingAt()))
-                .solvedAt(toLocalDateTime(request.getSolvedAt()))
+                .sessionStartedAt(sessionStartedAt != null ? sessionStartedAt : now)
+                .firstCodingAt(firstCodingAt)
+                .solvedAt(solvedAt)
                 .thinkingDuration(request.getThinkingDuration())
                 .codingDuration(request.getCodingDuration())
                 .totalTimeAway(request.getTotalTimeAway() != null ? request.getTotalTimeAway() : 0L)
