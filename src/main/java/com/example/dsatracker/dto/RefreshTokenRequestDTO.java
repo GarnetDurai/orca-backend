@@ -1,5 +1,6 @@
 package com.example.dsatracker.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 @Getter
@@ -7,7 +8,8 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AuthenticationResponse {
-    private String token;
+public class RefreshTokenRequestDTO {
+
+    @NotBlank(message = "Refresh token is required")
     private String refreshToken;
 }

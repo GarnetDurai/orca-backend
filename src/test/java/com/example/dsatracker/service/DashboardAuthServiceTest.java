@@ -42,6 +42,9 @@ class DashboardAuthServiceTest {
     @Mock
     private JwtService jwtService;
 
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
     @InjectMocks
     private DashboardAuthService service;
 

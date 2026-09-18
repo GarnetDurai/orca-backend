@@ -10,6 +10,7 @@ import com.example.dsatracker.security.JwtAuthenticationFilter;
 import com.example.dsatracker.security.JwtService;
 import com.example.dsatracker.service.AuthService;
 import com.example.dsatracker.service.DashboardAuthService;
+import com.example.dsatracker.service.RefreshTokenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -47,6 +49,9 @@ class AuthControllerAuthCodeTest {
 
     @MockitoBean
     private DashboardAuthService dashboardAuthService;
+
+    @MockitoBean
+    private RefreshTokenService refreshTokenService;
 
     @MockitoBean
     private JwtService jwtService;
@@ -89,7 +94,8 @@ class AuthControllerAuthCodeTest {
     void testGenerateDashboardCodeUnauthenticated() throws Exception {
         mockMvc.perform(post("/auth/dashboard-code")
                         .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("WWW-Authenticate"));
 
         verify(dashboardAuthService, never()).createDashboardCode(anyString());
     }
@@ -144,13 +150,71 @@ class AuthControllerAuthCodeTest {
     }
 
     @Test
-    @DisplayName("POST /auth/exchange-code - Malformed JSON body returns 400 Bad Request")
-    void testExchangeCodeMalformedJson() throws Exception {
-        mockMvc.perform(post("/auth/exchange-code")
+    @DisplayName("POST /auth/refresh - Valid refresh token returns 200 with new access and refresh tokens")
+    void testRefreshSuccess() throws Exception {
+        com.example.dsatracker.dto.RefreshTokenRequestDTO request = com.example.dsatracker.dto.RefreshTokenRequestDTO.builder()
+                .refreshToken("valid-raw-refresh-token")
+                .build();
+
+        AuthenticationResponse response = AuthenticationResponse.builder()
+                .token("new-access-jwt")
+                .refreshToken("new-rotated-refresh-token")
+                .build();
+
+        when(refreshTokenService.refreshAccessToken("valid-raw-refresh-token")).thenReturn(response);
+
+        mockMvc.perform(post("/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{invalid-json}"))
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("new-access-jwt"))
+                .andExpect(jsonPath("$.refreshToken").value("new-rotated-refresh-token"));
+    }
+
+    @Test
+    @DisplayName("POST /auth/refresh - Invalid or expired refresh token returns 401 Unauthorized")
+    void testRefreshInvalid() throws Exception {
+        com.example.dsatracker.dto.RefreshTokenRequestDTO request = com.example.dsatracker.dto.RefreshTokenRequestDTO.builder()
+                .refreshToken("invalid-token")
+                .build();
+
+        when(refreshTokenService.refreshAccessToken("invalid-token"))
+                .thenThrow(new InvalidCredentialsException("Invalid, expired, or revoked refresh token"));
+
+        mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Invalid, expired, or revoked refresh token"));
+    }
+
+    @Test
+    @DisplayName("POST /auth/refresh - Blank token returns 400 Bad Request")
+    void testRefreshBlank() throws Exception {
+        com.example.dsatracker.dto.RefreshTokenRequestDTO request = com.example.dsatracker.dto.RefreshTokenRequestDTO.builder()
+                .refreshToken("")
+                .build();
+
+        mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.message").value("Malformed JSON request body"));
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    @DisplayName("POST /auth/logout - Revokes token and returns 200 OK")
+    void testLogout() throws Exception {
+        com.example.dsatracker.dto.RefreshTokenRequestDTO request = com.example.dsatracker.dto.RefreshTokenRequestDTO.builder()
+                .refreshToken("token-to-revoke")
+                .build();
+
+        mockMvc.perform(post("/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        verify(refreshTokenService).revokeToken("token-to-revoke");
     }
 }

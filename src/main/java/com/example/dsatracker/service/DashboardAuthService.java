@@ -32,15 +32,18 @@ public class DashboardAuthService {
     private final DashboardAuthCodeRepository repository;
     private final UserRepository userRepository;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
     public DashboardAuthService(
             DashboardAuthCodeRepository repository,
             UserRepository userRepository,
-            JwtService jwtService
+            JwtService jwtService,
+            RefreshTokenService refreshTokenService
     ) {
         this.repository = repository;
         this.userRepository = userRepository;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Transactional
@@ -93,10 +96,12 @@ public class DashboardAuthService {
 
         User user = authCode.getUser();
         String token = jwtService.generateToken(user.getEmail());
+        String refreshToken = refreshTokenService.createRefreshToken(user);
         log.info("Dashboard authorization code successfully consumed for user ID {}", user.getId());
 
         return AuthenticationResponse.builder()
                 .token(token)
+                .refreshToken(refreshToken)
                 .build();
     }
 

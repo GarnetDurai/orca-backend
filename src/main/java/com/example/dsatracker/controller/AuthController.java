@@ -1,12 +1,9 @@
 package com.example.dsatracker.controller;
 
-import com.example.dsatracker.dto.AuthenticationResponse;
-import com.example.dsatracker.dto.DashboardCodeResponseDTO;
-import com.example.dsatracker.dto.ExchangeCodeRequestDTO;
-import com.example.dsatracker.dto.LoginRequestDTO;
-import com.example.dsatracker.dto.RegisterRequestDTO;
+import com.example.dsatracker.dto.*;
 import com.example.dsatracker.service.AuthService;
 import com.example.dsatracker.service.DashboardAuthService;
+import com.example.dsatracker.service.RefreshTokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,13 +15,16 @@ public class AuthController {
 
     private final AuthService service;
     private final DashboardAuthService dashboardAuthService;
+    private final RefreshTokenService refreshTokenService;
 
     public AuthController(
             AuthService service,
-            DashboardAuthService dashboardAuthService
+            DashboardAuthService dashboardAuthService,
+            RefreshTokenService refreshTokenService
     ) {
         this.service = service;
         this.dashboardAuthService = dashboardAuthService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @PostMapping("/register")
@@ -37,6 +37,22 @@ public class AuthController {
     public ResponseEntity<AuthenticationResponse> login(
             @Valid @RequestBody LoginRequestDTO request) {
         return ResponseEntity.ok(service.login(request));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthenticationResponse> refresh(
+            @Valid @RequestBody RefreshTokenRequestDTO request) {
+        AuthenticationResponse response = refreshTokenService.refreshAccessToken(request.getRefreshToken());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            @RequestBody(required = false) RefreshTokenRequestDTO request) {
+        if (request != null && request.getRefreshToken() != null) {
+            refreshTokenService.revokeToken(request.getRefreshToken());
+        }
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/dashboard-code")
