@@ -8,7 +8,6 @@ import com.example.dsatracker.dto.SessionEventDTO;
 import com.example.dsatracker.exception.DuplicateResourceException;
 import com.example.dsatracker.exception.ResourceNotFoundException;
 import com.example.dsatracker.model.*;
-import com.example.dsatracker.repository.ProblemRepository;
 import com.example.dsatracker.repository.ProblemSessionRepository;
 import com.example.dsatracker.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +29,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,7 +39,7 @@ class SessionServiceTest {
     private ProblemSessionRepository sessionRepository;
 
     @Mock
-    private ProblemRepository problemRepository;
+    private ProblemService problemService;
 
     @Mock
     private UserRepository userRepository;
@@ -82,6 +82,8 @@ class SessionServiceTest {
         lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
         lenient().when(authentication.getName()).thenReturn("garnet@example.com");
         SecurityContextHolder.setContext(securityContext);
+
+        lenient().when(problemService.resolveOrCreateProblem(any(), any())).thenReturn(testProblem);
     }
 
     @Test
@@ -109,7 +111,6 @@ class SessionServiceTest {
 
         when(sessionRepository.existsBySessionId("sess-123")).thenReturn(false);
         when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
-        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
         when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> {
             ProblemSession ps = invocation.getArgument(0);
             ps.setId(100L);
@@ -126,6 +127,7 @@ class SessionServiceTest {
         assertEquals(1, response.getLeetcodeId());
         assertTrue(response.getSolved());
         assertEquals(1, response.getAttempts());
+        verify(problemService).resolveOrCreateProblem(eq(null), any(ProblemMetadataDTO.class));
     }
 
     @Test
@@ -150,7 +152,6 @@ class SessionServiceTest {
 
         when(sessionRepository.existsBySessionId("sess-multi-events")).thenReturn(false);
         when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
-        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
         when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> {
             ProblemSession ps = invocation.getArgument(0);
             ps.setId(101L);
@@ -192,7 +193,6 @@ class SessionServiceTest {
 
         when(sessionRepository.existsBySessionId("sess-multi-attempt")).thenReturn(false);
         when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
-        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
         when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProblemSessionResponseDTO response = sessionService.ingestSession(request);
@@ -224,7 +224,6 @@ class SessionServiceTest {
 
         when(sessionRepository.existsBySessionId("sess-hint")).thenReturn(false);
         when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
-        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
         when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         sessionService.ingestSession(request);
@@ -259,7 +258,6 @@ class SessionServiceTest {
 
         when(sessionRepository.existsBySessionId("sess-sub-id")).thenReturn(false);
         when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
-        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
         when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         sessionService.ingestSession(request);
@@ -307,7 +305,7 @@ class SessionServiceTest {
     }
 
     @Test
-    @DisplayName("8. Problem auto-creation when problem does not exist in DB")
+    @DisplayName("8. Problem auto-creation delegates to ProblemService")
     void testProblemAutoCreation() {
         ProblemSessionRequestDTO request = ProblemSessionRequestDTO.builder()
                 .sessionId("sess-auto-create-problem")
@@ -321,14 +319,17 @@ class SessionServiceTest {
                 .solved(true)
                 .build();
 
+        Problem newProblem = Problem.builder()
+                .id(99L)
+                .leetcodeId(999)
+                .title("New LeetCode Problem")
+                .difficulty(Difficulty.HARD)
+                .url("https://leetcode.com/problems/new-problem/")
+                .build();
+
         when(sessionRepository.existsBySessionId("sess-auto-create-problem")).thenReturn(false);
         when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
-        when(problemRepository.findByLeetcodeId(999)).thenReturn(Optional.empty());
-        when(problemRepository.save(any(Problem.class))).thenAnswer(invocation -> {
-            Problem p = invocation.getArgument(0);
-            p.setId(99L);
-            return p;
-        });
+        when(problemService.resolveOrCreateProblem(eq(null), any(ProblemMetadataDTO.class))).thenReturn(newProblem);
         when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ProblemSessionResponseDTO response = sessionService.ingestSession(request);
@@ -336,7 +337,7 @@ class SessionServiceTest {
         assertNotNull(response);
         assertEquals(99L, response.getProblemId());
         assertEquals(999, response.getLeetcodeId());
-        verify(problemRepository).save(any(Problem.class));
+        verify(problemService).resolveOrCreateProblem(eq(null), any(ProblemMetadataDTO.class));
     }
 
     @Test
@@ -408,7 +409,6 @@ class SessionServiceTest {
 
         when(sessionRepository.existsBySessionId("sess-srs-fail")).thenReturn(false);
         when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
-        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
         when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> {
             ProblemSession ps = invocation.getArgument(0);
             ps.setId(101L);
@@ -438,7 +438,6 @@ class SessionServiceTest {
 
         when(sessionRepository.existsBySessionId("sess-conf-fail")).thenReturn(false);
         when(userRepository.findByEmail("garnet@example.com")).thenReturn(Optional.of(testUser));
-        when(problemRepository.findByLeetcodeId(1)).thenReturn(Optional.of(testProblem));
         when(sessionRepository.save(any(ProblemSession.class))).thenAnswer(invocation -> {
             ProblemSession ps = invocation.getArgument(0);
             ps.setId(102L);

@@ -1,19 +1,18 @@
 package com.example.dsatracker.service;
 
-import com.example.dsatracker.dto.ProblemMetadataDTO;
 import com.example.dsatracker.dto.ProblemSessionDetailsDTO;
 import com.example.dsatracker.dto.ProblemSessionRequestDTO;
 import com.example.dsatracker.dto.ProblemSessionResponseDTO;
 import com.example.dsatracker.exception.DuplicateResourceException;
 import com.example.dsatracker.exception.ResourceNotFoundException;
 import com.example.dsatracker.mapper.SessionMapper;
-import com.example.dsatracker.model.Difficulty;
 import com.example.dsatracker.model.Problem;
 import com.example.dsatracker.model.ProblemSession;
 import com.example.dsatracker.model.User;
-import com.example.dsatracker.repository.ProblemRepository;
 import com.example.dsatracker.repository.ProblemSessionRepository;
 import com.example.dsatracker.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,20 +22,22 @@ import java.util.List;
 @Service
 public class SessionService {
 
+    private static final Logger log = LoggerFactory.getLogger(SessionService.class);
+
     private final ProblemSessionRepository sessionRepository;
-    private final ProblemRepository problemRepository;
+    private final ProblemService problemService;
     private final UserRepository userRepository;
     private final ConfidenceService confidenceService;
     private final RevisionScheduler revisionScheduler;
 
     public SessionService(
             ProblemSessionRepository sessionRepository,
-            ProblemRepository problemRepository,
+            ProblemService problemService,
             UserRepository userRepository,
             ConfidenceService confidenceService,
             RevisionScheduler revisionScheduler) {
         this.sessionRepository = sessionRepository;
-        this.problemRepository = problemRepository;
+        this.problemService = problemService;
         this.userRepository = userRepository;
         this.confidenceService = confidenceService;
         this.revisionScheduler = revisionScheduler;
@@ -55,7 +56,7 @@ public class SessionService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found."));
 
-        // 3. Resolve problem
+        // 3. Resolve or create problem in an isolated, immediately committed transaction
         Problem problem = resolveProblem(request);
 
         // 4. Map request to entities (attaching all SessionEvent records)
@@ -69,7 +70,8 @@ public class SessionService {
             try {
                 confidenceService.updateConfidenceForSession(savedSession);
             } catch (Exception e) {
-                // Confidence calculation should not fail the ingestion of raw session data
+                log.error("Failed to update confidence state for session '{}' (user={}, problem={}): {}",
+                        savedSession.getSessionId(), user.getId(), problem.getId(), e.getMessage(), e);
             }
         }
 
@@ -78,7 +80,8 @@ public class SessionService {
             try {
                 revisionScheduler.processSession(savedSession);
             } catch (Exception e) {
-                // SRS scheduling should not fail the ingestion of raw session data
+                log.error("Failed to process revision scheduling for session '{}' (user={}, problem={}): {}",
+                        savedSession.getSessionId(), user.getId(), problem.getId(), e.getMessage(), e);
             }
         }
 
@@ -110,44 +113,6 @@ public class SessionService {
     }
 
     private Problem resolveProblem(ProblemSessionRequestDTO request) {
-        if (request.getProblemId() != null) {
-            return problemRepository.findById(request.getProblemId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Problem not found with ID: " + request.getProblemId()));
-        }
-
-        if (request.getProblem() != null && request.getProblem().getLeetcodeId() != null) {
-            ProblemMetadataDTO meta = request.getProblem();
-            return problemRepository.findByLeetcodeId(meta.getLeetcodeId())
-                    .orElseGet(() -> {
-                        Difficulty difficulty = Difficulty.MEDIUM;
-                        if (meta.getDifficulty() != null) {
-                            try {
-                                difficulty = Difficulty.valueOf(meta.getDifficulty().toUpperCase());
-                            } catch (IllegalArgumentException ignored) {
-                                difficulty = Difficulty.MEDIUM;
-                            }
-                        }
-
-                        String title = (meta.getTitle() != null && !meta.getTitle().isBlank())
-                                ? meta.getTitle()
-                                : "LeetCode Problem #" + meta.getLeetcodeId();
-
-                        String url = (meta.getUrl() != null && !meta.getUrl().isBlank())
-                                ? meta.getUrl()
-                                : "https://leetcode.com/problems/" + (meta.getSlug() != null ? meta.getSlug() : meta.getLeetcodeId());
-
-                        Problem newProblem = Problem.builder()
-                                .leetcodeId(meta.getLeetcodeId())
-                                .title(title)
-                                .difficulty(difficulty)
-                                .url(url)
-                                .build();
-
-                        return problemRepository.save(newProblem);
-                    });
-        }
-
-        throw new ResourceNotFoundException("Problem identifier is required (either problemId or problem.leetcodeId).");
+        return problemService.resolveOrCreateProblem(request.getProblemId(), request.getProblem());
     }
 }
