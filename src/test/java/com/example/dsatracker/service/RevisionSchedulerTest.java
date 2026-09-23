@@ -747,20 +747,20 @@ class RevisionSchedulerTest {
         // 3 active days with 1, 2, and 10 reviews
         // Median of [1, 2, 10] is 2! (10 reviews does not inflate capacity to 10)
         List<RevisionHistory> historyList = List.of(
-                RevisionHistory.builder().reviewedAt(now.minusDays(1)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(2)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(2).plusHours(1)).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(1)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(2)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(2).plusHours(1)).previousIntervalDays(1).build(),
                 // Day 3 had 10 reviews
-                RevisionHistory.builder().reviewedAt(now.minusDays(3)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(1)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(2)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(3)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(4)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(5)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(6)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(7)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(8)).build(),
-                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(9)).build()
+                RevisionHistory.builder().reviewedAt(now.minusDays(3)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(1)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(2)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(3)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(4)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(5)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(6)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(7)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(8)).previousIntervalDays(1).build(),
+                RevisionHistory.builder().reviewedAt(now.minusDays(3).plusHours(9)).previousIntervalDays(1).build()
         );
 
         when(revisionHistoryRepository.findByUserIdAndReviewedAtAfter(eq(userA.getId()), any()))
@@ -781,6 +781,83 @@ class RevisionSchedulerTest {
         var capacity = capacityService.calculateCapacity(userA.getId(), now, ZoneId.systemDefault());
         assertEquals(1, capacity.getDailyCapacity());
         assertEquals(0, capacity.getActiveDaysLast30Days());
+    }
+
+    @Test
+    @DisplayName("44b. Initial SRS enrollment (previousIntervalDays == 0) does not count as completed review")
+    void testInitialSrsEnrollmentDoesNotCountAsCompletedReview() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 23, 10, 0);
+        ZoneId zone = ZoneId.systemDefault();
+
+        // 1 initial enrollment today (previousIntervalDays = 0)
+        List<RevisionHistory> historyList = List.of(
+                RevisionHistory.builder()
+                        .reviewedAt(now)
+                        .previousIntervalDays(0)
+                        .newIntervalDays(6)
+                        .outcome(ReviewOutcome.GOOD)
+                        .build()
+        );
+
+        when(revisionHistoryRepository.findByUserIdAndReviewedAtAfter(eq(userA.getId()), any()))
+                .thenReturn(historyList);
+        when(sessionRepository.findByUserId(userA.getId())).thenReturn(Collections.emptyList());
+
+        var capacity = capacityService.calculateCapacity(userA.getId(), now, zone);
+        assertEquals(0, capacity.getReviewsCompletedToday(), "Initial SRS enrollment baseline must NOT be counted as a completed review");
+    }
+
+    @Test
+    @DisplayName("44c. Null previousIntervalDays does not count as completed review (strict null semantics)")
+    void testNullPreviousIntervalDoesNotCountAsCompletedReview() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 23, 10, 0);
+        ZoneId zone = ZoneId.systemDefault();
+
+        List<RevisionHistory> historyList = List.of(
+                RevisionHistory.builder()
+                        .reviewedAt(now)
+                        .previousIntervalDays(null)
+                        .newIntervalDays(6)
+                        .outcome(ReviewOutcome.GOOD)
+                        .build()
+        );
+
+        when(revisionHistoryRepository.findByUserIdAndReviewedAtAfter(eq(userA.getId()), any()))
+                .thenReturn(historyList);
+        when(sessionRepository.findByUserId(userA.getId())).thenReturn(Collections.emptyList());
+
+        var capacity = capacityService.calculateCapacity(userA.getId(), now, zone);
+        assertEquals(0, capacity.getReviewsCompletedToday(), "Null previousIntervalDays must NOT be counted as a completed review");
+    }
+
+    @Test
+    @DisplayName("44d. Genuine review (previousIntervalDays > 0) counts as completed review")
+    void testGenuineReviewCountsAsCompletedReview() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 23, 10, 0);
+        ZoneId zone = ZoneId.systemDefault();
+
+        // 1 initial enrollment today + 1 genuine review today
+        List<RevisionHistory> historyList = List.of(
+                RevisionHistory.builder()
+                        .reviewedAt(now.minusHours(2))
+                        .previousIntervalDays(0)
+                        .newIntervalDays(6)
+                        .outcome(ReviewOutcome.GOOD)
+                        .build(),
+                RevisionHistory.builder()
+                        .reviewedAt(now)
+                        .previousIntervalDays(2)
+                        .newIntervalDays(4)
+                        .outcome(ReviewOutcome.GOOD)
+                        .build()
+        );
+
+        when(revisionHistoryRepository.findByUserIdAndReviewedAtAfter(eq(userA.getId()), any()))
+                .thenReturn(historyList);
+        when(sessionRepository.findByUserId(userA.getId())).thenReturn(Collections.emptyList());
+
+        var capacity = capacityService.calculateCapacity(userA.getId(), now, zone);
+        assertEquals(1, capacity.getReviewsCompletedToday(), "Only genuine review must be counted in completedReviewsToday");
     }
 
     // I. NATURAL RECALL

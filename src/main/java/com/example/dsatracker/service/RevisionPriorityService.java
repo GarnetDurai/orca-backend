@@ -74,6 +74,7 @@ public class RevisionPriorityService {
                 .leetcodeId(p != null ? p.getLeetcodeId() : null)
                 .problemTitle(p != null ? p.getTitle() : null)
                 .difficulty(p != null && p.getDifficulty() != null ? p.getDifficulty().name() : null)
+                .lastReviewedAt(state.getLastReviewedAt())
                 .nextReviewAt(state.getNextReviewAt())
                 .currentIntervalDays(state.getCurrentIntervalDays())
                 .reviewCount(state.getReviewCount())

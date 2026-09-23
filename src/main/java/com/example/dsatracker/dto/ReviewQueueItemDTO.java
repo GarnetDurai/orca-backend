@@ -16,6 +16,7 @@ public class ReviewQueueItemDTO {
     private String problemTitle;
     private String difficulty;
 
+    private LocalDateTime lastReviewedAt;
     private LocalDateTime nextReviewAt;
     private Integer currentIntervalDays;
     private Integer reviewCount;

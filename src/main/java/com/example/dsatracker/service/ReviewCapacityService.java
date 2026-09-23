@@ -70,6 +70,9 @@ public class ReviewCapacityService {
         }
 
         for (RevisionHistory r : recentReviews) {
+            if (!isGenuineReview(r)) {
+                continue;
+            }
             LocalDate date = r.getReviewedAt().atZone(zone).toLocalDate();
             activeDays.add(date);
             reviewsPerDay.put(date, reviewsPerDay.getOrDefault(date, 0) + 1);
@@ -142,5 +145,13 @@ public class ReviewCapacityService {
             return 0.0;
         }
         return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
+    }
+
+    private boolean isGenuineReview(RevisionHistory r) {
+        if (r == null || r.getPreviousIntervalDays() == null) {
+            return false;
+        }
+
+        return r.getPreviousIntervalDays() > 0;
     }
 }
